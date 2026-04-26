@@ -3,7 +3,7 @@ import { AuthForm } from '@/components/auth-form';
 
 export default function RegisterPage() {
   return (
-    <main className="mx-auto grid min-h-screen max-w-md place-items-center px-6">
+    <section className="mx-auto grid min-h-[calc(100vh-165px)] max-w-md place-items-center px-6 py-10">
       <div className="w-full">
         <h1 className="mb-2 text-3xl font-bold">Create your studio</h1>
         <p className="mb-6 text-slate-600">
@@ -11,6 +11,6 @@ export default function RegisterPage() {
         </p>
         <AuthForm mode="register" />
       </div>
-    </main>
+    </section>
   );
 }

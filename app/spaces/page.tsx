@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
+import { ProtectedPage } from '@/components/protected-page';
 import { apiRequest } from '@/lib/api';
 import { Space } from '@/lib/types';
 
@@ -21,7 +22,8 @@ export default function SpacesPage() {
 
   async function createSpace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     await apiRequest<Space>('/spaces', {
       method: 'POST',
       body: JSON.stringify({
@@ -29,35 +31,39 @@ export default function SpacesPage() {
         description: String(form.get('description') ?? ''),
       }),
     });
-    event.currentTarget.reset();
+    formElement.reset();
     await loadSpaces();
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Dashboard</p>
-        <h1 className="mt-2 text-4xl font-bold">Your spaces</h1>
-      </header>
+    <ProtectedPage>
+      <section className="space-doodle-bg min-h-[calc(100vh-165px)] text-ink">
+        <div className="relative z-10 mx-auto max-w-6xl px-6 py-10">
+          <header className="mb-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Dashboard</p>
+            <h1 className="mt-2 text-4xl font-black">Your spaces</h1>
+          </header>
 
-      <form onSubmit={createSpace} className="mb-8 grid gap-3 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-[1fr_2fr_auto]">
-        <input name="name" required placeholder="Space name" className="rounded-xl border p-3" />
-        <input name="description" placeholder="Short description" className="rounded-xl border p-3" />
-        <button className="rounded-xl bg-ink px-5 py-3 font-semibold text-white">Create</button>
-      </form>
+          <form onSubmit={createSpace} className="mb-8 grid gap-3 rounded-3xl bg-white/85 p-5 shadow-sm backdrop-blur md:grid-cols-[1fr_2fr_auto]">
+            <input name="name" required placeholder="Space name" className="rounded-xl border p-3" />
+            <input name="description" placeholder="Short description" className="rounded-xl border p-3" />
+            <button className="rounded-xl bg-ink px-5 py-3 font-semibold text-white">Create</button>
+          </form>
 
-      {error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-      <section className="grid gap-4 md:grid-cols-3">
-        {spaces.map((space) => (
-          <Link key={space.id} href={`/spaces/${space.id}`} className="rounded-3xl bg-white p-5 shadow-sm transition hover:-translate-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              {space.activeThemeKey ?? 'No theme'}
-            </p>
-            <h2 className="mt-3 text-xl font-bold">{space.name}</h2>
-            <p className="mt-2 text-sm text-slate-600">{space.description}</p>
-          </Link>
-        ))}
+          {error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+          <section className="grid gap-4 md:grid-cols-3">
+            {spaces.map((space) => (
+              <Link key={space.id} href={`/space/${space.id}`} className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur transition hover:-translate-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  {space.activeThemeKey ?? 'No theme'}
+                </p>
+                <h2 className="mt-3 text-xl font-bold">{space.name}</h2>
+                <p className="mt-2 text-sm text-slate-600">{space.description}</p>
+              </Link>
+            ))}
+          </section>
+        </div>
       </section>
-    </main>
+    </ProtectedPage>
   );
 }

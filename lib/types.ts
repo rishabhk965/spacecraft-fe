@@ -13,6 +13,46 @@ export interface Space {
   name: string;
   description: string | null;
   activeThemeKey: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UserMenuItem {
+  id: 'profile' | 'spaces' | 'support' | 'contact' | 'logout';
+  label: string;
+  href: string | null;
+  action: 'navigate' | 'logout';
+}
+
+export interface Profile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  subscription: {
+    tier: 'free' | 'paid';
+    label: string;
+    status: 'active';
+  };
+}
+
+export interface PasswordVerificationResponse {
+  verificationId: string;
+  maskedEmail: string;
+}
+
+export interface SupportFaq {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface SupportChatResponse {
+  id: string;
+  author: 'SpaceCraft Support Bot';
+  message: string;
+  createdAt: string;
+  suggestedActions: string[];
 }
 
 export interface ThemeDefinition {
