@@ -1,12 +1,16 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { DragEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { DragEvent, useEffect, useMemo, useState } from 'react';
 import { ProtectedPage } from '@/components/protected-page';
+import { SpaceCanvas } from '@/components/scene/space-canvas';
+import { DesignInsightPanel } from '@/components/space-studio/design-insight-panel';
+import { ItemTagInput } from '@/components/space-studio/item-tag-input';
 import { RecommendationsPanel, SpaceAnalysis } from '@/components/space-studio/space-analysis';
+import { ThemePicker } from '@/components/theme-picker/theme-picker';
 import { buildSceneAnalysis } from '@/features/space-design';
 import { apiRequest, uploadSpaceImages } from '@/lib/api';
-import { Recommendation, SceneObject, SceneVersion, Space, ThemeDefinition } from '@/lib/types';
+import { AiDesignInsight, Recommendation, SceneObject, SceneVersion, Space, SpaceItem, ThemeDefinition } from '@/lib/types';
 
 const SceneEditor = dynamic(
   () => import('@/components/scene/scene-editor').then((module) => module.SceneEditor),
@@ -22,20 +26,23 @@ export default function SpaceStudioPage({ params }: PageProps) {
   const [space, setSpace] = useState<Space | null>(null);
   const [sceneVersion, setSceneVersion] = useState<SceneVersion | null>(null);
   const [themes, setThemes] = useState<ThemeDefinition[]>([]);
+  const [spaceItems, setSpaceItems] = useState<SpaceItem[]>([]);
+  const [designInsight, setDesignInsight] = useState<AiDesignInsight | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [selectedObject, setSelectedObject] = useState<SceneObject | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [isGeneratingDesign, setIsGeneratingDesign] = useState(false);
 
   const imagePreviews = useMemo(
     () => selectedImages.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [selectedImages],
   );
   const activeTheme = useMemo(
-    () => themes.find((theme) => theme.key === space?.activeThemeKey),
-    [space?.activeThemeKey, themes],
+    () => space?.theme ?? themes.find((theme) => theme.id === space?.themeId) ?? themes.find((theme) => theme.key === space?.activeThemeKey),
+    [space?.activeThemeKey, space?.theme, space?.themeId, themes],
   );
   const analysis = useMemo(
     () => buildSceneAnalysis(sceneVersion?.sceneJson ?? null, space?.description ?? space?.name ?? '', activeTheme?.name),
@@ -45,7 +52,10 @@ export default function SpaceStudioPage({ params }: PageProps) {
   useEffect(() => {
     if (!spaceUid) return;
     void Promise.all([
-      apiRequest<Space>(`/spaces/${spaceUid}`).then(setSpace),
+      apiRequest<Space>(`/spaces/${spaceUid}`).then((nextSpace) => {
+        setSpace(nextSpace);
+        setSpaceItems(nextSpace.items ?? []);
+      }),
       apiRequest<ThemeDefinition[]>('/themes').then(setThemes),
       apiRequest<SceneVersion>(`/spaces/${spaceUid}/scene`).then(setSceneVersion).catch(() => null),
       apiRequest<Recommendation[]>(`/spaces/${spaceUid}/recommendations`).then(setRecommendations).catch(() => []),
@@ -59,32 +69,14 @@ export default function SpaceStudioPage({ params }: PageProps) {
     [imagePreviews],
   );
 
-  async function addFurniture(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    await apiRequest(`/spaces/${spaceUid}/furniture-inputs`, {
-      method: 'POST',
-      body: JSON.stringify({
-        label: String(form.get('label')),
-        tags: String(form.get('tags') ?? '')
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-      }),
-    });
-    formElement.reset();
-    setMessage('Furniture input saved');
-  }
-
   async function processSpace() {
     const imageIds = uploadedImageIds.length > 0 ? uploadedImageIds : await uploadPendingImages();
     const result = await apiRequest<{ sceneVersion: SceneVersion }>(`/spaces/${spaceUid}/generate`, {
       method: 'POST',
       body: JSON.stringify({
         description: space?.description ?? '',
-        items: [],
-        theme: space?.activeThemeKey ?? '',
+        items: spaceItems.map((item) => item.name),
+        themeId: space?.themeId,
         imageIds,
       }),
     });
@@ -93,13 +85,62 @@ export default function SpaceStudioPage({ params }: PageProps) {
     setMessage('AI scene generated');
   }
 
-  async function applyTheme(themeKey: string) {
+  async function saveSpaceItems(nextItems: SpaceItem[]) {
+    const updatedSpace = await apiRequest<Space>(`/spaces/${spaceUid}/items`, {
+      method: 'PATCH',
+      body: JSON.stringify({ items: nextItems }),
+    });
+    setSpace(updatedSpace);
+    setSpaceItems(updatedSpace.items ?? []);
+    setMessage('Items saved');
+  }
+
+  function persistCanvasItems(nextItems: SpaceItem[]) {
+    setSpaceItems(nextItems);
+    void saveSpaceItems(nextItems);
+  }
+
+  async function generateDesignInsight() {
+    setIsGeneratingDesign(true);
+    try {
+      const imageIds = uploadedImageIds.length > 0 ? uploadedImageIds : await uploadPendingImages();
+      const insight = await apiRequest<AiDesignInsight>(`/spaces/${spaceUid}/ai-design`, {
+        method: 'POST',
+        body: JSON.stringify({
+          currentItems: spaceItems,
+          roomPhotos: imageIds,
+        }),
+      });
+      setDesignInsight(insight);
+      setSpaceItems(applyInsightLayout(spaceItems, insight));
+      setMessage('AI layout calculated');
+    } finally {
+      setIsGeneratingDesign(false);
+    }
+  }
+
+  async function applyAiSuggestions() {
+    if (!designInsight) return;
+    const nextItems = applyInsightLayout(mergeRecommendedItems(spaceItems, designInsight), designInsight);
+    await saveSpaceItems(nextItems);
+    setMessage('AI suggestions applied');
+  }
+
+  async function applyTheme(themeId: string) {
+    const selectedTheme = themes.find((theme) => theme.id === themeId);
     const nextScene = await apiRequest<SceneVersion>(`/spaces/${spaceUid}/apply-theme`, {
       method: 'POST',
-      body: JSON.stringify({ themeKey }),
+      body: JSON.stringify({ themeId }),
     });
     setSceneVersion(nextScene);
-    setMessage(`Applied ${themeKey} theme`);
+    if (selectedTheme) {
+      setSpace((current) =>
+        current
+          ? { ...current, themeId: selectedTheme.id, theme: selectedTheme, activeThemeKey: selectedTheme.key }
+          : current,
+      );
+    }
+    setMessage(`Applied ${selectedTheme?.name ?? 'selected'} theme`);
   }
 
   async function markRecommendation(id: string, action: 'accept' | 'reject') {
@@ -206,26 +247,28 @@ export default function SpaceStudioPage({ params }: PageProps) {
                 </button>
               </section>
 
-              <form onSubmit={addFurniture} className="rounded-3xl bg-white/85 p-5 shadow-sm backdrop-blur">
-                <h2 className="mb-3 font-bold">Furniture/items</h2>
-                <input name="label" required placeholder="Grey sofa" className="mb-3 w-full rounded-xl border p-3" />
-                <input name="tags" placeholder="sofa,fabric,large" className="mb-3 w-full rounded-xl border p-3" />
-                <button className="w-full rounded-xl border px-4 py-3 font-semibold">Add item</button>
-              </form>
+              <ItemTagInput items={spaceItems} onSave={saveSpaceItems} />
+
+              <DesignInsightPanel
+                insight={designInsight}
+                isLoading={isGeneratingDesign}
+                onGenerate={generateDesignInsight}
+                onApply={applyAiSuggestions}
+              />
 
               <div className="rounded-3xl bg-white/85 p-5 shadow-sm backdrop-blur">
                 <h2 className="mb-3 font-bold">Themes</h2>
-                <div className="grid gap-2">
-                  {themes.map((theme) => (
-                    <button key={theme.key} onClick={() => void applyTheme(theme.key)} className="rounded-xl border p-3 text-left font-semibold">
-                      {theme.name}
-                    </button>
-                  ))}
-                </div>
+                <ThemePicker
+                  themes={themes}
+                  selectedThemeId={activeTheme?.id ?? null}
+                  onSelectTheme={(themeId) => void applyTheme(themeId)}
+                  dense
+                />
               </div>
             </aside>
 
             <section className="space-y-5">
+              <SpaceCanvas items={spaceItems} theme={activeTheme} onItemsChange={persistCanvasItems} />
               <SceneEditor scene={sceneVersion?.sceneJson ?? null} selectedObjectId={selectedObject?.id ?? null} onSelectObject={setSelectedObject} />
               <SpaceAnalysis good={analysis.good} needsImprovement={analysis.needsImprovement} />
               <RecommendationsPanel
@@ -239,4 +282,51 @@ export default function SpaceStudioPage({ params }: PageProps) {
       </section>
     </ProtectedPage>
   );
+}
+
+function applyInsightLayout(items: SpaceItem[], insight: AiDesignInsight): SpaceItem[] {
+  const layoutByName = new Map(insight.layout.map((layout) => [normalizeName(layout.name), layout]));
+
+  return items.map((item) => {
+    const layout = layoutByName.get(normalizeName(item.name));
+    if (!layout) return item;
+    return {
+      ...item,
+      position: layout.coords,
+      rotation: layout.rotation,
+      shapeType: layout.shapeType,
+      dimensions: layout.dimensions,
+      material: layout.material,
+      mass: layout.mass,
+      isDraggable: layout.isDraggable,
+      collision: layout.collision,
+    };
+  });
+}
+
+function mergeRecommendedItems(items: SpaceItem[], insight: AiDesignInsight): SpaceItem[] {
+  const existingNames = new Set(items.map((item) => normalizeName(item.name)));
+  const layoutByName = new Map(insight.layout.map((layout) => [normalizeName(layout.name), layout]));
+  const additions = insight.recommendations
+    .filter((recommendation) => !existingNames.has(normalizeName(recommendation.name)))
+    .map((recommendation): SpaceItem => {
+      const layout = layoutByName.get(normalizeName(recommendation.name));
+      return {
+        name: recommendation.name,
+        position: layout?.coords ?? [0, 0.35, 0],
+        rotation: layout?.rotation ?? [0, 0, 0],
+        shapeType: layout?.shapeType,
+        dimensions: layout?.dimensions,
+        material: layout?.material,
+        mass: layout?.mass,
+        isDraggable: layout?.isDraggable,
+        collision: layout?.collision,
+      };
+    });
+
+  return [...items, ...additions];
+}
+
+function normalizeName(value: string): string {
+  return value.trim().toLowerCase();
 }

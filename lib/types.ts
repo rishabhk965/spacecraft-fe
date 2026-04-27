@@ -12,7 +12,10 @@ export interface Space {
   id: string;
   name: string;
   description: string | null;
+  themeId: string;
+  theme?: ThemeDefinition;
   activeThemeKey: string | null;
+  items: SpaceItem[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -56,14 +59,15 @@ export interface SupportChatResponse {
 }
 
 export interface ThemeDefinition {
+  id: string;
   key: string;
   name: string;
-  palette: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    wall: string;
-    floor: string;
+  focus: string;
+  keyElements: string[];
+  designSpecs: {
+    lighting: string;
+    colorPalette: string[];
+    texture: string;
   };
 }
 
@@ -73,10 +77,73 @@ export interface Vector3 {
   z: number;
 }
 
+export type SpaceItemVector = [number, number, number];
+export type PrimitiveShapeType = 'box' | 'cylinder' | 'sphere';
+
+export interface SpaceItemDimensions {
+  width: number;
+  height: number;
+  depth: number;
+  unit: 'm' | 'cm';
+}
+
+export interface SpaceItemMaterial {
+  color?: string;
+  finish?: 'matte' | 'gloss' | 'fabric' | 'wood' | 'metal' | string;
+}
+
+export interface SpaceItemCollision {
+  buffer: number;
+  adjusted: boolean;
+  overlapsResolved: number;
+}
+
+export interface SpaceItem {
+  name: string;
+  position: SpaceItemVector;
+  rotation: SpaceItemVector;
+  shapeType?: PrimitiveShapeType;
+  dimensions?: SpaceItemDimensions;
+  material?: SpaceItemMaterial;
+  mass?: number;
+  isDraggable?: boolean;
+  collision?: SpaceItemCollision;
+  confidence?: number;
+  ai?: {
+    provider: 'gemini' | 'fallback' | 'mock';
+    promptVersion: string;
+    reasoning?: string;
+  };
+}
+
+export interface AiDesignInsight {
+  verdict: string;
+  score?: number;
+  strengths?: string[];
+  issues?: string[];
+  improvements: string[];
+  recommendations: Array<{
+    name: string;
+    reason: string;
+  }>;
+  layout: Array<{
+    name: string;
+    coords: SpaceItemVector;
+    rotation: SpaceItemVector;
+    dimensions: SpaceItemDimensions;
+    shapeType: PrimitiveShapeType;
+    material?: SpaceItemMaterial;
+    mass: number;
+    isDraggable: boolean;
+    collision: SpaceItemCollision;
+  }>;
+}
+
 export interface SceneObject {
   id: string;
   category: string;
   label: string;
+  shapeType?: PrimitiveShapeType;
   position: Vector3;
   rotation: Vector3;
   scale: Vector3;

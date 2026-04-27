@@ -3,14 +3,17 @@
 import dynamic from 'next/dynamic';
 import { DragEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { SpaceAnalysis, RecommendationsPanel } from '@/components/space-studio/space-analysis';
+import { ThemePicker } from '@/components/theme-picker/theme-picker';
 import {
+  buildSceneAnalysis,
   createTrialSpaceDesignProject,
+  mapThemeDefinitionToDesignTheme,
   mapProjectToSceneJson,
   parseSpaceItemsInput,
   SpaceDesignProject,
-  trialDesignThemes,
 } from '@/features/space-design';
-import { SceneObject } from '@/lib/types';
+import { apiRequest } from '@/lib/api';
+import { Recommendation, SceneJson, SceneObject, ThemeDefinition } from '@/lib/types';
 
 const SceneEditor = dynamic(
   () => import('@/components/scene/scene-editor').then((module) => module.SceneEditor),
@@ -20,20 +23,41 @@ const SceneEditor = dynamic(
 export default function ExploreTrialPage() {
   const [description, setDescription] = useState('');
   const [itemsText, setItemsText] = useState('');
-  const [themeKey, setThemeKey] = useState<(typeof trialDesignThemes)[number]['key']>('orbital-calm');
+  const [themes, setThemes] = useState<ThemeDefinition[]>([]);
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   const [generatedTrial, setGeneratedTrial] = useState<SpaceDesignProject | null>(null);
+  const [generatedScene, setGeneratedScene] = useState<SceneJson | null>(null);
+  const [generatedRecommendations, setGeneratedRecommendations] = useState<Recommendation[]>([]);
   const [selectedObject, setSelectedObject] = useState<SceneObject | null>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
 
   const selectedTheme = useMemo(
-    () => trialDesignThemes.find((theme) => theme.key === themeKey) ?? trialDesignThemes[0],
-    [themeKey],
+    () => themes.find((theme) => theme.id === selectedThemeId) ?? themes[0] ?? null,
+    [selectedThemeId, themes],
+  );
+  const selectedDesignTheme = useMemo(
+    () => (selectedTheme ? mapThemeDefinitionToDesignTheme(selectedTheme) : null),
+    [selectedTheme],
   );
   const imagePreviews = useMemo(
     () => selectedImages.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [selectedImages],
   );
-  const sceneJson = useMemo(() => mapProjectToSceneJson(generatedTrial), [generatedTrial]);
+  const sceneJson = useMemo(() => generatedScene ?? mapProjectToSceneJson(generatedTrial), [generatedScene, generatedTrial]);
+  const analysis = useMemo(
+    () => buildSceneAnalysis(sceneJson, generatedTrial?.space.description ?? description, selectedTheme?.name ?? 'Selected theme'),
+    [description, generatedTrial?.space.description, sceneJson, selectedTheme?.name],
+  );
+
+  useEffect(() => {
+    async function loadThemes() {
+      const nextThemes = await apiRequest<ThemeDefinition[]>('/themes');
+      setThemes(nextThemes);
+      setSelectedThemeId((current) => current ?? nextThemes[0]?.id ?? null);
+    }
+
+    void loadThemes();
+  }, []);
 
   useEffect(
     () => () => {
@@ -42,25 +66,47 @@ export default function ExploreTrialPage() {
     [imagePreviews],
   );
 
-  function generateTrial(event: FormEvent<HTMLFormElement>) {
+  async function generateTrial(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!selectedTheme || !selectedDesignTheme) return;
     const items = parseSpaceItemsInput(itemsText);
     const nextTrial = createTrialSpaceDesignProject({
       mode: 'trial',
       description: description.trim(),
       items,
-      themeKey: selectedTheme.key,
+      themeKey: selectedDesignTheme.key,
+      theme: selectedDesignTheme,
       imageNames: selectedImages.map((image) => image.name),
     });
     setGeneratedTrial(nextTrial);
+    setGeneratedScene(null);
+    setGeneratedRecommendations([]);
+
+    try {
+      const result = await apiRequest<{ sceneJson: SceneJson; recommendations: Recommendation[] }>('/trial/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          description: description.trim(),
+          items,
+          themeId: selectedTheme.id,
+          imageNames: selectedImages.map((image) => image.name),
+        }),
+      });
+      setGeneratedScene(result.sceneJson);
+      setGeneratedRecommendations(result.recommendations);
+    } catch {
+      setGeneratedScene(mapProjectToSceneJson(nextTrial));
+    }
   }
 
   function clearTrial() {
     setDescription('');
     setItemsText('');
-    setThemeKey('orbital-calm');
+    setSelectedThemeId(themes[0]?.id ?? null);
     setSelectedImages([]);
     setGeneratedTrial(null);
+    setGeneratedScene(null);
+    setGeneratedRecommendations([]);
     setSelectedObject(null);
   }
 
@@ -126,22 +172,15 @@ export default function ExploreTrialPage() {
 
               <fieldset>
                 <legend className="text-sm font-bold text-slate-200">Theme selection</legend>
-                <div className="mt-3 grid gap-3">
-                  {trialDesignThemes.map((theme) => (
-                    <button
-                      key={theme.key}
-                      type="button"
-                      onClick={() => setThemeKey(theme.key)}
-                      className={`rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 ${
-                        theme.key === themeKey
-                          ? 'border-cyan-200 bg-cyan-300/15 shadow-lg shadow-cyan-950/30'
-                          : 'border-white/10 bg-white/5 hover:bg-white/10'
-                      }`}
-                    >
-                      <span className="font-black">{theme.name}</span>
-                      <span className="mt-1 block text-sm text-slate-300">{theme.description}</span>
-                    </button>
-                  ))}
+                <div className="mt-3">
+                  <ThemePicker
+                    themes={themes}
+                    selectedThemeId={selectedThemeId}
+                    onSelectTheme={setSelectedThemeId}
+                    showPreview
+                    dense
+                    dark
+                  />
                 </div>
               </fieldset>
 
@@ -186,7 +225,7 @@ export default function ExploreTrialPage() {
               </section>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <button type="submit" className="rounded-full bg-cyan-200 px-6 py-4 font-black text-slate-950 shadow-xl shadow-cyan-950/30 transition hover:-translate-y-0.5">
+                <button type="submit" disabled={!selectedThemeId} className="rounded-full bg-cyan-200 px-6 py-4 font-black text-slate-950 shadow-xl shadow-cyan-950/30 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50">
                   Generate 3D View
                 </button>
                 <button type="button" onClick={clearTrial} className="rounded-full border border-white/15 bg-white/10 px-6 py-4 font-black text-white transition hover:-translate-y-0.5 hover:bg-white/15">
@@ -205,13 +244,10 @@ export default function ExploreTrialPage() {
 
             {generatedTrial ? (
               <>
-                <SpaceAnalysis
-                  good={generatedTrial.evaluation?.good.map((item) => item.detail) ?? []}
-                  needsImprovement={generatedTrial.evaluation?.needsImprovement.map((item) => item.detail) ?? []}
-                />
+                <SpaceAnalysis good={analysis.good} needsImprovement={analysis.needsImprovement} />
                 <RecommendationsPanel
                   themeName={generatedTrial.space.theme?.name}
-                  recommendations={generatedTrial.recommendations}
+                  recommendations={generatedRecommendations.length ? generatedRecommendations : generatedTrial.recommendations}
                 />
               </>
             ) : (

@@ -26,5 +26,6 @@ export {
   trialDesignThemes,
 } from './model/trial-space-design';
 export { mapAuthenticatedSpaceDesignProject } from './model/authenticated-space-design.mapper';
+export { mapThemeDefinitionToDesignTheme } from './model/theme-definition.mapper';
 export type { CreateSpaceItemInput, SpaceDesignApiPort, SpaceDesignJob } from './api/space-design-api.port';
 export { TrialSpaceDesignApi } from './api/trial-space-design-api';

@@ -1,11 +1,11 @@
 import { Recommendation, SceneVersion, Space, ThemeDefinition } from '@/lib/types';
 import {
-  DesignTheme,
   MaterialDefinition,
   SceneObject3D,
   SpaceDesignProject,
   SpaceRecommendation,
 } from './space-design.types';
+import { mapThemeDefinitionToDesignTheme } from './theme-definition.mapper';
 
 export function mapAuthenticatedSpaceDesignProject({
   space,
@@ -18,7 +18,7 @@ export function mapAuthenticatedSpaceDesignProject({
   recommendations: Recommendation[];
   themes: ThemeDefinition[];
 }): SpaceDesignProject {
-  const activeTheme = themes.find((theme) => theme.key === space.activeThemeKey);
+  const activeTheme = space.theme ?? themes.find((theme) => theme.id === space.themeId) ?? themes.find((theme) => theme.key === space.activeThemeKey);
   const now = new Date().toISOString();
 
   return {
@@ -36,7 +36,7 @@ export function mapAuthenticatedSpaceDesignProject({
           }
         : undefined,
       constraints: [],
-      theme: activeTheme ? mapTheme(activeTheme) : null,
+      theme: activeTheme ? mapThemeDefinitionToDesignTheme(activeTheme) : null,
     },
     items:
       sceneVersion?.sceneJson.objects.map((object) => ({
@@ -85,28 +85,6 @@ export function mapAuthenticatedSpaceDesignProject({
       createdAt: now,
       updatedAt: now,
       source: 'vision',
-    },
-  };
-}
-
-function mapTheme(theme: ThemeDefinition): DesignTheme {
-  return {
-    key: theme.key,
-    name: theme.name,
-    description: theme.name,
-    palette: {
-      primary: theme.palette.primary,
-      secondary: theme.palette.secondary,
-      accent: theme.palette.accent,
-      wall: theme.palette.wall,
-      floor: theme.palette.floor,
-      swatches: [
-        theme.palette.primary,
-        theme.palette.secondary,
-        theme.palette.accent,
-        theme.palette.wall,
-        theme.palette.floor,
-      ],
     },
   };
 }

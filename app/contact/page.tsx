@@ -25,7 +25,7 @@ export default function ContactPage() {
         <aside className="space-y-5">
           <div className="rounded-[2rem] border-4 border-slate-900 bg-cyan-100 p-6 shadow-2xl shadow-cyan-900/10">
             <p className="text-sm font-black uppercase tracking-[0.25em] text-cyan-800">Designed by</p>
-            <h2 className="mt-3 text-3xl font-black">Rishabh Kumar with love</h2>
+            <h2 className="mt-3 text-3xl font-black">Rishabh Kumar</h2>
           </div>
           <div className="rounded-[2rem] border-4 border-slate-900 bg-white/85 p-6 shadow-2xl shadow-slate-900/10 backdrop-blur">
             <h2 className="text-2xl font-black">Contact details</h2>

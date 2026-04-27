@@ -13,55 +13,55 @@ import {
 
 export const trialDesignThemes = [
   {
-    key: 'orbital-calm',
-    name: 'Orbital Calm',
-    description: 'Soft neutrals, airy spacing, and gentle cyan highlights.',
+    key: 'modern',
+    name: 'Modern',
+    description: 'Clean geometry, neutral surfaces, and crisp teal accents.',
     palette: {
-      primary: '#67e8f9',
-      secondary: '#c4b5fd',
-      accent: '#fef3c7',
-      wall: '#bfdbfe',
-      floor: '#e0f2fe',
-      swatches: ['#67e8f9', '#c4b5fd', '#fef3c7', '#bfdbfe', '#e0f2fe'],
+      primary: '#0F172A',
+      secondary: '#E2E8F0',
+      accent: '#14B8A6',
+      wall: '#F8FAFC',
+      floor: '#94A3B8',
+      swatches: ['#0F172A', '#E2E8F0', '#14B8A6', '#F8FAFC', '#94A3B8'],
     },
   },
   {
-    key: 'lunar-minimal',
-    name: 'Lunar Minimal',
+    key: 'minimal',
+    name: 'Minimal',
     description: 'Quiet monochrome, clean silhouettes, and deliberate negative space.',
     palette: {
-      primary: '#e2e8f0',
-      secondary: '#94a3b8',
-      accent: '#cbd5e1',
-      wall: '#f8fafc',
-      floor: '#a5b4fc',
-      swatches: ['#e2e8f0', '#94a3b8', '#cbd5e1', '#f8fafc', '#a5b4fc'],
+      primary: '#111827',
+      secondary: '#F9FAFB',
+      accent: '#9CA3AF',
+      wall: '#FFFFFF',
+      floor: '#E5E7EB',
+      swatches: ['#111827', '#F9FAFB', '#9CA3AF', '#FFFFFF', '#E5E7EB'],
     },
   },
   {
-    key: 'nebula-pop',
-    name: 'Nebula Pop',
-    description: 'Bold accent zones, playful contrast, and energetic focal points.',
+    key: 'workspace',
+    name: 'Workspace',
+    description: 'Focused work zones, ergonomic flow, and warm task accents.',
     palette: {
-      primary: '#f472b6',
-      secondary: '#fb923c',
-      accent: '#22d3ee',
-      wall: '#a78bfa',
-      floor: '#facc15',
-      swatches: ['#f472b6', '#fb923c', '#22d3ee', '#a78bfa', '#facc15'],
+      primary: '#1D4ED8',
+      secondary: '#DBEAFE',
+      accent: '#F59E0B',
+      wall: '#EFF6FF',
+      floor: '#CBD5E1',
+      swatches: ['#1D4ED8', '#DBEAFE', '#F59E0B', '#EFF6FF', '#CBD5E1'],
     },
   },
   {
-    key: 'biophilic-station',
-    name: 'Biophilic Station',
-    description: 'Organic greens, warm light, and cozy planetarium textures.',
+    key: 'cozy',
+    name: 'Cozy',
+    description: 'Warm materials, soft seating, and layered ambient lighting.',
     palette: {
-      primary: '#86efac',
-      secondary: '#fde68a',
-      accent: '#7dd3fc',
-      wall: '#fca5a5',
-      floor: '#d9f99d',
-      swatches: ['#86efac', '#fde68a', '#7dd3fc', '#fca5a5', '#d9f99d'],
+      primary: '#8B5E3C',
+      secondary: '#F1D7B6',
+      accent: '#D97706',
+      wall: '#FFF7ED',
+      floor: '#7C4A25',
+      swatches: ['#8B5E3C', '#F1D7B6', '#D97706', '#FFF7ED', '#7C4A25'],
     },
   },
 ] as const satisfies readonly DesignTheme[];
@@ -81,7 +81,7 @@ export function getTrialDesignTheme(themeKey: string): DesignTheme {
 export function createTrialSpaceDesignProject(input: CreateSpaceDesignProjectInput): SpaceDesignProject {
   const now = new Date().toISOString();
   const description = input.description.trim() || 'An exploratory virtual space';
-  const theme = getTrialDesignTheme(input.themeKey);
+  const theme = input.theme ?? getTrialDesignTheme(input.themeKey);
   const mergedItemLabels = [...new Set([...input.items, ...inferItemsFromImageNames(input.imageNames ?? [])])];
   const items = mergedItemLabels.map((item, index) => createTrialItem(item, index, theme));
   const objects = items.map((item) => createSceneObject(item, theme));

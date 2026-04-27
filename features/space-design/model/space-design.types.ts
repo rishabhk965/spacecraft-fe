@@ -146,5 +146,6 @@ export interface CreateSpaceDesignProjectInput {
   description: string;
   items: string[];
   themeKey: string;
+  theme?: DesignTheme;
   imageNames?: string[];
 }

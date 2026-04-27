@@ -2,7 +2,7 @@
 
 import { Grid, OrbitControls, Stars } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
-import { SceneJson, SceneObject } from '@/lib/types';
+import { PrimitiveShapeType, SceneJson, SceneObject, Vector3 } from '@/lib/types';
 
 interface SceneEditorProps {
   scene: SceneJson | null;
@@ -53,11 +53,10 @@ export function SceneEditor({ scene, selectedObjectId, onSelectObject }: SceneEd
         {scene.objects.map((object) => (
           <group key={object.id} position={[object.position.x, object.position.y + 0.38, object.position.z]}>
             <mesh
-              scale={[object.scale.x, object.scale.y, object.scale.z]}
               rotation={[object.rotation.x, object.rotation.y, object.rotation.z]}
               onClick={() => onSelectObject(object)}
             >
-              <boxGeometry args={boxSizeFor(object.category)} />
+              <PrimitiveGeometry shapeType={object.shapeType ?? shapeForCategory(object.category)} scale={object.scale} />
               <meshStandardMaterial
                 color={object.id === selectedObjectId ? '#F59E0B' : object.material.color}
                 roughness={0.55}
@@ -76,14 +75,19 @@ export function SceneEditor({ scene, selectedObjectId, onSelectObject }: SceneEd
   );
 }
 
-function boxSizeFor(category: string): [number, number, number] {
-  if (category === 'sofa' || category === 'bed') return [1.8, 0.7, 0.8];
-  if (category === 'table' || category === 'desk') return [1.2, 0.6, 0.8];
-  if (category === 'rug') return [1.8, 0.08, 1.2];
-  if (category === 'lamp' || category === 'plant') return [0.35, 1.2, 0.35];
-  if (category === 'seating') return [1.8, 0.7, 0.9];
-  if (category === 'surface') return [1.35, 0.28, 0.85];
-  if (category === 'storage') return [0.9, 1.3, 0.55];
-  if (category === 'lighting') return [0.3, 1.45, 0.3];
-  return [0.7, 0.7, 0.7];
+function PrimitiveGeometry({ shapeType, scale }: { shapeType: PrimitiveShapeType; scale: Vector3 }) {
+  if (shapeType === 'cylinder') {
+    const radius = Math.max(scale.x, scale.z) / 2;
+    return <cylinderGeometry args={[radius, radius, scale.y, 32]} />;
+  }
+  if (shapeType === 'sphere') {
+    const radius = Math.max(scale.x, scale.y, scale.z) / 2;
+    return <sphereGeometry args={[radius, 32, 16]} />;
+  }
+  return <boxGeometry args={[scale.x, scale.y, scale.z]} />;
+}
+
+function shapeForCategory(category: string): PrimitiveShapeType {
+  if (category === 'lamp' || category === 'plant') return 'cylinder';
+  return 'box';
 }
